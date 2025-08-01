@@ -1,22 +1,26 @@
-from sqlalchemy.orm import Session
-from sqlalchemy.exc import IntegrityError
-from typing import List, Optional
-from app.orders.models.order import Order, OrderItem
-from app.catalog.models.item import Item
-from app.orders.schemas.order import OrderCreate, OrderUpdate
 from decimal import Decimal
+from typing import List, Optional
+
+from sqlalchemy.exc import IntegrityError
+from sqlalchemy.orm import Session
+
+from app.catalog.models.item import Item
+from app.orders.models.order import Order, OrderItem
+from app.orders.schemas.order import OrderCreate, OrderUpdate
 
 
 class OrderService:
     def __init__(self, db: Session):
-        self.db  =  db
+        self.db = db
 
-    def get_orders(self, skip: int = 0, limit: int = 100, user_uuid: Optional[str] = None) -> List[Order]:
+    def get_orders(
+        self, skip: int = 0, limit: int = 100, user_uuid: Optional[str] = None
+    ) -> List[Order]:
         """Получить список заказов"""
-        query  =  self.db.query(Order)
+        query = self.db.query(Order)
 
         if user_uuid:
-            query  =  query.filter(Order.user_uuid == user_uuid)
+            query = query.filter(Order.user_uuid == user_uuid)
 
         return query.offset(skip).limit(limit).all()
 
@@ -31,17 +35,17 @@ class OrderService:
     def create_order(self, order: OrderCreate) -> Order:
         """Создать новый заказ"""
         # Проверяем, что все товары существуют
-        item_uuids  =  [item.item_uuid for item in order.order_items]
-        items  =  self.db.query(Item).filter(Item.uuid.in_(item_uuids)).all()
+        item_uuids = [item.item_uuid for item in order.order_items]
+        items = self.db.query(Item).filter(Item.uuid.in_(item_uuids)).all()
 
         if len(items) != len(item_uuids):
             raise ValueError("Некоторые товары не найдены")
 
         # Создаем заказ
-        db_order  =  Order(
-            user_uuid = order.user_uuid,
-            total_amount = order.total_amount,
-            status = order.status
+        db_order = Order(
+            user_uuid=order.user_uuid,
+            total_amount=order.total_amount,
+            status=order.status,
         )
 
         try:
@@ -50,11 +54,11 @@ class OrderService:
 
             # Создаем элементы заказа
             for order_item in order.order_items:
-                db_order_item  =  OrderItem(
-                    order_uuid = db_order.uuid,
-                    item_uuid = order_item.item_uuid,
-                    quantity = order_item.quantity,
-                    price = order_item.price
+                db_order_item = OrderItem(
+                    order_uuid=db_order.uuid,
+                    item_uuid=order_item.item_uuid,
+                    quantity=order_item.quantity,
+                    price=order_item.price,
                 )
                 self.db.add(db_order_item)
 
@@ -65,13 +69,15 @@ class OrderService:
             self.db.rollback()
             raise ValueError("Ошибка при создании заказа")
 
-    def update_order(self, order_uuid: str, order_update: OrderUpdate) -> Optional[Order]:
+    def update_order(
+        self, order_uuid: str, order_update: OrderUpdate
+    ) -> Optional[Order]:
         """Обновить заказ"""
-        db_order  =  self.get_order(order_uuid)
+        db_order = self.get_order(order_uuid)
         if not db_order:
             return None
 
-        update_data  =  order_update.dict(exclude_unset = True)
+        update_data = order_update.dict(exclude_unset=True)
 
         for field, value in update_data.items():
             setattr(db_order, field, value)
@@ -86,7 +92,7 @@ class OrderService:
 
     def delete_order(self, order_uuid: str) -> bool:
         """Удалить заказ"""
-        db_order  =  self.get_order(order_uuid)
+        db_order = self.get_order(order_uuid)
         if not db_order:
             return False
 
@@ -96,7 +102,7 @@ class OrderService:
 
     def calculate_order_total(self, order_items: List[dict]) -> Decimal:
         """Рассчитать общую сумму заказа"""
-        total  =  Decimal('0')
+        total = Decimal("0")
         for item in order_items:
-            total += item['price'] * item['quantity']
+            total += item["price"] * item["quantity"]
         return total

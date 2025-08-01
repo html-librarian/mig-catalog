@@ -167,14 +167,10 @@ db-reset: ## Сбросить базу данных
 	alembic upgrade head
 
 # Команды для разработки
-format: ## Форматировать код
-	@echo "$(BLUE)Форматирование кода...$(NC)"
-	black app/ tests/
-	isort app/ tests/
-
 check-format: ## Проверить форматирование
 	@echo "$(BLUE)Проверка форматирования...$(NC)"
-	black --check app/ tests/
+	export PATH="$$HOME/Library/Python/3.9/bin:$$PATH" && \
+	black --check app/ tests/ && \
 	isort --check-only app/ tests/
 
 # Команды для документации
@@ -241,4 +237,37 @@ deploy-staging: ## Развернуть на staging
 deploy-production: ## Развернуть на production
 	@echo "$(RED)ВНИМАНИЕ: Развертывание на production!$(NC)"
 	@read -p "Продолжить? (y/N): " confirm && [ "$$confirm" = "y" ] || exit 1
-	# Добавьте команды для развертывания на production 
+	# Добавьте команды для развертывания на production
+
+# Форматирование кода
+format: ## Форматировать код
+	@echo "$(BLUE)Форматирование кода...$(NC)"
+	export PATH="$$HOME/Library/Python/3.9/bin:$$PATH" && \
+	black --line-length=79 app/ && \
+	isort --profile=black --line-length=79 app/
+
+# Проверка стиля кода
+lint: ## Проверить стиль кода
+	@echo "$(BLUE)Проверка стиля кода...$(NC)"
+	export PATH="$$HOME/Library/Python/3.9/bin:$$PATH" && \
+	flake8 --max-line-length=79 --extend-ignore=E203,W503 app/ && \
+	pylint app/
+
+# Автоматическое исправление проблем
+fix: ## Автоматически исправить проблемы
+	@echo "$(BLUE)Автоматическое исправление...$(NC)"
+	export PATH="$$HOME/Library/Python/3.9/bin:$$PATH" && \
+	black --line-length=79 app/ && \
+	isort --profile=black --line-length=79 app/ && \
+	autopep8 --in-place --recursive --aggressive --aggressive app/
+
+# Установка pre-commit
+install-pre-commit: ## Установить pre-commit hooks
+	@echo "$(BLUE)Установка pre-commit hooks...$(NC)"
+	pip install pre-commit
+	pre-commit install
+
+# Запуск всех проверок
+check-all: format lint ## Форматировать и проверить код
+
+.PHONY: format lint fix install-pre-commit check-all

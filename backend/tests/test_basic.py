@@ -1,47 +1,63 @@
-import pytest
-from decimal import Decimal
+"""
+Базовый тест для проверки окружения
+"""
+
+import os
+import sys
+from pathlib import Path
+
+# Добавляем путь к модулям
+sys.path.insert(0, str(Path(__file__).parent.parent))
+
+# Устанавливаем переменные окружения
+os.environ["ENVIRONMENT"] = "testing"
+os.environ["DEBUG"] = "True"
+os.environ[
+    "SECRET_KEY"
+] = "test-secret-key-64-characters-long-for-testing-purposes-only-123456789"
 
 
-def test_basic_functionality():
-    """Простой тест базовой функциональности"""
-    assert True  # Всегда проходит
-    assert 1 + 1 == 2
-    assert "hello" + " " + "world" == "hello world"
+def test_environment():
+    """Тест переменных окружения"""
+    assert os.getenv("ENVIRONMENT") == "testing"
+    assert os.getenv("DEBUG") == "True"
+    assert len(os.getenv("SECRET_KEY", "")) >= 64
+    print("✅ Переменные окружения настроены правильно")
 
 
-def test_decimal_operations():
-    """Тест операций с Decimal"""
-    price = Decimal("123.456")
-    assert price == Decimal("123.456")
-    assert str(price) == "123.456"
+def test_validators_import():
+    """Тест импорта валидаторов"""
+    try:
+        # Импортируем только валидаторы, избегая циклических импортов
+        from app.core.validators import (
+            EmailValidator,
+            PasswordValidator,
+            UsernameValidator,
+        )
 
+        # Тестируем валидацию пароля
+        is_valid, errors = PasswordValidator.validate_password(
+            "StrongPass123!"
+        )
+        assert is_valid, f"Пароль должен быть валидным: {errors}"
 
-def test_string_operations():
-    """Тест строковых операций"""
-    username = "testuser"
-    assert len(username) == 8
-    assert username.isalnum() == True
+        # Тестируем валидацию email
+        is_valid, errors = EmailValidator.validate_email("test@example.com")
+        assert is_valid, f"Email должен быть валидным: {errors}"
 
+        # Тестируем валидацию имени пользователя
+        is_valid, errors = UsernameValidator.validate_username("testuser")
+        assert is_valid, f"Имя пользователя должно быть валидным: {errors}"
 
-def test_list_operations():
-    """Тест операций со списками"""
-    items = ["item1", "item2", "item3"]
-    assert len(items) == 3
-    assert "item1" in items
-    assert items[0] == "item1"
+        print("✅ Валидаторы работают правильно")
 
-
-def test_dict_operations():
-    """Тест операций со словарями"""
-    user_data = {
-        "username": "testuser",
-        "email": "test@example.com",
-        "is_active": True
-    }
-    assert user_data["username"] == "testuser"
-    assert user_data["email"] == "test@example.com"
-    assert user_data["is_active"] == True
+    except Exception as e:
+        print(f"❌ Ошибка при тестировании валидаторов: {e}")
+        raise
 
 
 if __name__ == "__main__":
-    pytest.main([__file__, "-v"]) 
+    print("🚀 Запуск базовых тестов...")
+    test_environment()
+    test_validators_import()
+    print("✅ Все базовые тесты прошли успешно!")

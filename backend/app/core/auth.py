@@ -1,56 +1,80 @@
+import os
+import secrets
 from datetime import datetime, timedelta
 from typing import Optional
+
+from dotenv import load_dotenv
 from fastapi import Depends, HTTPException, status
-from fastapi.security import HTTPBearer, HTTPAuthorizationCredentials
+from fastapi.security import HTTPAuthorizationCredentials, HTTPBearer
 from jose import JWTError, jwt
 from passlib.context import CryptContext
 from sqlalchemy.orm import Session
-import os
-import secrets
-from dotenv import load_dotenv
 
 from app.db.session import get_db
 from app.users.models.user import User
-from app.users.services.user_service import UserService
 
 load_dotenv()
 
 # Настройки безопасности
 SECRET_KEY = os.getenv("SECRET_KEY")
 ALGORITHM = os.getenv("ALGORITHM", "HS256")
-ACCESS_TOKEN_EXPIRE_MINUTES = int(os.getenv("ACCESS_TOKEN_EXPIRE_MINUTES", "30"))
+ACCESS_TOKEN_EXPIRE_MINUTES = int(
+    os.getenv("ACCESS_TOKEN_EXPIRE_MINUTES", "30")
+)
 
 # Критическая проверка SECRET_KEY во всех окружениях
 if not SECRET_KEY:
-    raise ValueError("SECRET_KEY must be set in all environments!")
+    # Для тестового окружения используем fallback
+    if os.getenv("ENVIRONMENT") == "testing":
+        SECRET_KEY = "test-secret-key-64-characters-long-for-testing-purposes-only-123456789"
+    else:
+        raise ValueError("SECRET_KEY must be set in all environments!")
 elif len(SECRET_KEY) < 64:  # Увеличиваем минимальную длину
-    raise ValueError("SECRET_KEY must be at least 64 characters long!")
-elif (SECRET_KEY == "your-secret-key-here" or  # nosec
-      "default" in SECRET_KEY.lower() or
-      "your-super-secret" in SECRET_KEY.lower()):
-    raise ValueError("SECRET_KEY must be changed from default value!")
+    if os.getenv("ENVIRONMENT") == "testing":
+        SECRET_KEY = "test-secret-key-64-characters-long-for-testing-purposes-only-123456789"
+    else:
+        raise ValueError("SECRET_KEY must be at least 64 characters long!")
+elif (
+    SECRET_KEY == "your-secret-key-here"  # nosec
+    or "default" in SECRET_KEY.lower()
+    or "your-super-secret" in SECRET_KEY.lower()
+):
+    if os.getenv("ENVIRONMENT") == "testing":
+        SECRET_KEY = "test-secret-key-64-characters-long-for-testing-purposes-only-123456789"
+    else:
+        raise ValueError("SECRET_KEY must be changed from default value!")
 
 # Генерация дополнительного ключа для ротации
 ROTATION_SECRET_KEY = os.getenv("ROTATION_SECRET_KEY")
 if not ROTATION_SECRET_KEY:
-    ROTATION_SECRET_KEY = secrets.token_urlsafe(64)  # Увеличиваем длину
+    if os.getenv("ENVIRONMENT") == "testing":
+        ROTATION_SECRET_KEY = (
+            "test-rotation-key-64-characters-long-for-testing-purposes-only"
+        )
+    else:
+        ROTATION_SECRET_KEY = secrets.token_urlsafe(64)  # Увеличиваем длину
 
 # Настройка хеширования паролей с улучшенными параметрами
 pwd_context = CryptContext(
     schemes=["bcrypt"],
     deprecated="auto",
-    bcrypt__rounds=14  # Увеличиваем количество раундов для большей безопасности
+    bcrypt__rounds=14,  # Увеличиваем количество раундов для безопасности
 )
 
 # Настройка HTTP Bearer
 security = HTTPBearer()
 
+
 class AuthService:
     def __init__(self, db: Session):
         self.db = db
+        from app.users.services.user_service import UserService
+
         self.user_service = UserService(db)
 
-    def verify_password(self, plain_password: str, hashed_password: str) -> bool:
+    def verify_password(
+        self, plain_password: str, hashed_password: str
+    ) -> bool:
         """Проверить пароль"""
         return pwd_context.verify(plain_password, hashed_password)
 
@@ -69,26 +93,32 @@ class AuthService:
             return None
         return user
 
-    def create_access_token(self, data: dict, expires_delta: Optional[timedelta] = None) -> str:
+    def create_access_token(
+        self, data: dict, expires_delta: Optional[timedelta] = None
+    ) -> str:
         """Создать JWT токен с улучшенной безопасностью"""
         to_encode = data.copy()
         current_time = datetime.utcnow()
-        
+
         if expires_delta:
             expire = current_time + expires_delta
         else:
-            expire = current_time + timedelta(minutes=ACCESS_TOKEN_EXPIRE_MINUTES)
+            expire = current_time + timedelta(
+                minutes=ACCESS_TOKEN_EXPIRE_MINUTES
+            )
 
         # Добавляем дополнительные claims для безопасности
-        to_encode.update({
-            "exp": expire,
-            "iat": current_time,  # Время создания токена
-            "nbf": current_time,  # Not Before - токен недействителен до этого времени
-            "iss": "mig-catalog-api",
-            "aud": "mig-catalog-users",
-            "jti": secrets.token_urlsafe(32),  # Уникальный ID токена
-            "type": "access"
-        })
+        to_encode.update(
+            {
+                "exp": expire,
+                "iat": current_time,  # Время создания токена
+                "nbf": current_time,  # Not Before - токен недействителен
+                "iss": "mig-catalog-api",
+                "aud": "mig-catalog-users",
+                "jti": secrets.token_urlsafe(32),  # Уникальный ID токена
+                "type": "access",
+            }
+        )
 
         # Используем основной ключ для новых токенов
         encoded_jwt = jwt.encode(to_encode, SECRET_KEY, algorithm=ALGORITHM)
@@ -99,18 +129,26 @@ class AuthService:
         try:
             # Сначала пробуем основной ключ
             payload = jwt.decode(
-                token, 
-                SECRET_KEY, 
+                token,
+                SECRET_KEY,
                 algorithms=[ALGORITHM],
                 options={
                     "verify_signature": True,
                     "verify_exp": True,
                     "verify_iat": True,
                     "verify_nbf": True,
-                    "require": ["exp", "iat", "nbf", "iss", "aud", "jti", "type"]
-                }
+                    "require": [
+                        "exp",
+                        "iat",
+                        "nbf",
+                        "iss",
+                        "aud",
+                        "jti",
+                        "type",
+                    ],
+                },
             )
-            
+
             # Дополнительные проверки
             if payload.get("iss") != "mig-catalog-api":
                 return None
@@ -118,24 +156,32 @@ class AuthService:
                 return None
             if payload.get("type") != "access":
                 return None
-                
+
             return payload
         except JWTError:
             try:
                 # Если не получилось, пробуем ключ ротации
                 payload = jwt.decode(
-                    token, 
-                    ROTATION_SECRET_KEY, 
+                    token,
+                    ROTATION_SECRET_KEY,
                     algorithms=[ALGORITHM],
                     options={
                         "verify_signature": True,
                         "verify_exp": True,
                         "verify_iat": True,
                         "verify_nbf": True,
-                        "require": ["exp", "iat", "nbf", "iss", "aud", "jti", "type"]
-                    }
+                        "require": [
+                            "exp",
+                            "iat",
+                            "nbf",
+                            "iss",
+                            "aud",
+                            "jti",
+                            "type",
+                        ],
+                    },
                 )
-                
+
                 # Дополнительные проверки
                 if payload.get("iss") != "mig-catalog-api":
                     return None
@@ -143,14 +189,15 @@ class AuthService:
                     return None
                 if payload.get("type") != "access":
                     return None
-                    
+
                 return payload
             except JWTError:
                 return None
 
+
 async def get_current_user(
     credentials: HTTPAuthorizationCredentials = Depends(security),
-    db: Session = Depends(get_db)
+    db: Session = Depends(get_db),
 ) -> User:
     """Получить текущего пользователя из токена с улучшенной безопасностью"""
     credentials_exception = HTTPException(
@@ -164,29 +211,47 @@ async def get_current_user(
         payload = None
         try:
             payload = jwt.decode(
-                credentials.credentials, 
-                SECRET_KEY, 
+                credentials.credentials,
+                SECRET_KEY,
                 algorithms=[ALGORITHM],
                 options={
                     "verify_signature": True,
                     "verify_exp": True,
                     "verify_iat": True,
                     "verify_nbf": True,
-                    "require": ["exp", "iat", "nbf", "iss", "aud", "jti", "type", "sub"]
-                }
+                    "require": [
+                        "exp",
+                        "iat",
+                        "nbf",
+                        "iss",
+                        "aud",
+                        "jti",
+                        "type",
+                        "sub",
+                    ],
+                },
             )
         except JWTError:
             payload = jwt.decode(
-                credentials.credentials, 
-                ROTATION_SECRET_KEY, 
+                credentials.credentials,
+                ROTATION_SECRET_KEY,
                 algorithms=[ALGORITHM],
                 options={
                     "verify_signature": True,
                     "verify_exp": True,
                     "verify_iat": True,
                     "verify_nbf": True,
-                    "require": ["exp", "iat", "nbf", "iss", "aud", "jti", "type", "sub"]
-                }
+                    "require": [
+                        "exp",
+                        "iat",
+                        "nbf",
+                        "iss",
+                        "aud",
+                        "jti",
+                        "type",
+                        "sub",
+                    ],
+                },
             )
 
         # Дополнительные проверки безопасности
@@ -211,6 +276,8 @@ async def get_current_user(
     except JWTError:
         raise credentials_exception
 
+    from app.users.services.user_service import UserService
+
     user_service = UserService(db)
     user = user_service.get_user(user_uuid)
     if user is None:
@@ -218,11 +285,15 @@ async def get_current_user(
 
     return user
 
-async def get_current_active_user(current_user: User = Depends(get_current_user)) -> User:
+
+async def get_current_active_user(
+    current_user: User = Depends(get_current_user),
+) -> User:
     """Получить текущего активного пользователя"""
     if not current_user.is_active:
         raise HTTPException(status_code=400, detail="Неактивный пользователь")
     return current_user
+
 
 def create_token_for_user(user: User) -> str:
     """Создать токен для пользователя"""

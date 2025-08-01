@@ -75,19 +75,16 @@ docker-compose down
 
 ### 📖 Основная документация
 
-- **[🚀 Быстрый старт](backend/docs/QUICK_START.md)** - Полное руководство по запуску
-- **[🏗️ Развертывание](backend/docs/DEPLOYMENT.md)** - Продакшен развертывание
-- **[🔒 Безопасность](backend/docs/SECURITY.md)** - Документация по безопасности
-- **[🧪 Тестирование](backend/docs/TESTING.md)** - Руководство по тестированию
-- **[🗄️ Миграции](backend/docs/MIGRATIONS.md)** - Работа с базой данных
-- **[🐛 Отладка](backend/docs/VSCODE_DEBUG_GUIDE.md)** - Отладка в VS Code
+- **[🐛 Отладка в VS Code](VSCODE_DEBUG_GUIDE.md)** - Руководство по отладке
+- **[📋 История изменений](CHANGELOG.md)** - Changelog проекта
+- **[🔒 Безопасность](backend/app/core/security.py)** - Модуль безопасности
+- **[🧪 Тестирование](backend/tests/)** - Тесты проекта
+- **[🗄️ Миграции](backend/migrations/)** - Миграции базы данных
 
 ### 📊 Отчеты и аналитика
 
-- **[📈 Отчет об улучшениях](backend/docs/IMPROVEMENTS_REPORT.md)** - Анализ улучшений
+- **[📈 Отчет об улучшениях](backend/IMPROVEMENTS_SUMMARY.md)** - Анализ улучшений
 - **[🔐 Отчет по безопасности](backend/SECURITY_FIXES_REPORT.md)** - Исправленные уязвимости
-- **[📝 Финальный отчет](backend/docs/FINAL_REPORT.md)** - Итоговый анализ проекта
-- **[📋 Changelog](backend/docs/CHANGELOG.md)** - История изменений
 
 ---
 
@@ -174,11 +171,12 @@ mig-catalog/
 │   │   └── 📁 core/           # Общие компоненты
 │   ├── 📁 tests/              # Тесты
 │   ├── 📁 migrations/         # Миграции базы данных
-│   ├── 📁 docs/               # Документация
 │   └── 📄 requirements.txt    # Python зависимости
 ├── 📁 frontend/               # Frontend (будущее)
 ├── 📄 docker-compose.yml      # Docker Compose конфигурация
 ├── 📄 Dockerfile              # Dockerfile для backend
+├── 📄 CHANGELOG.md           # История изменений
+├── 📄 VSCODE_DEBUG_GUIDE.md  # Руководство по отладке
 └── 📄 README.md              # Документация
 ```
 
@@ -242,6 +240,8 @@ mig-catalog/
 | `GET` | `/health`          | Базовая проверка состояния       |
 | `GET` | `/health/detailed` | Детальная проверка всех сервисов |
 | `GET` | `/metrics`         | Метрики производительности       |
+| `GET` | `/alerts`          | Активные алерты                  |
+| `GET` | `/status`          | Полный статус системы            |
 
 ---
 

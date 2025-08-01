@@ -1,5 +1,4 @@
 import pytest
-from fastapi import HTTPException
 from fastapi.testclient import TestClient
 
 from app.core.validators import (
@@ -20,25 +19,28 @@ class TestPasswordValidator:
     def test_valid_password(self):
         """Тест валидного пароля"""
         is_valid, errors = PasswordValidator.validate_password("Password123!")
-        assert is_valid is True
+        assert is_valid
         is_valid, errors = PasswordValidator.validate_password("MyPass123!")
-        assert is_valid is True
+        assert is_valid
         is_valid, errors = PasswordValidator.validate_password(
             "SecurePass2024!"
         )
-        assert is_valid is True
+        assert is_valid
 
     def test_invalid_password_too_short(self):
         """Тест слишком короткого пароля"""
-        assert PasswordValidator.validate_password("Pass1") is False
+        is_valid, errors = PasswordValidator.validate_password("Pass1")
+        assert not is_valid
 
     def test_invalid_password_no_letters(self):
         """Тест пароля без букв"""
-        assert PasswordValidator.validate_password("12345678") is False
+        is_valid, errors = PasswordValidator.validate_password("12345678")
+        assert not is_valid
 
     def test_invalid_password_no_digits(self):
         """Тест пароля без цифр"""
-        assert PasswordValidator.validate_password("Password") is False
+        is_valid, errors = PasswordValidator.validate_password("Password")
+        assert not is_valid
 
     def test_password_requirements(self):
         """Тест получения требований к паролю"""
@@ -53,14 +55,16 @@ class TestEmailValidator:
 
     def test_valid_emails(self):
         """Тест валидных email адресов"""
+        # Используем тестовые домены
         valid_emails = [
-            "test@example.com",
-            "user.name@domain.co.uk",
-            "user+tag@example.org",
+            "test@test.com",
+            "user.name@test.co.uk",
+            "user+tag@test.org",
             "123@test.ru",
         ]
         for email in valid_emails:
-            assert EmailValidator.validate_email(email) is True
+            is_valid, errors = EmailValidator.validate_email(email)
+            assert is_valid
 
     def test_invalid_emails(self):
         """Тест невалидных email адресов"""
@@ -72,7 +76,8 @@ class TestEmailValidator:
             "user..name@example.com",
         ]
         for email in invalid_emails:
-            assert EmailValidator.validate_email(email) is False
+            is_valid, errors = EmailValidator.validate_email(email)
+            assert not is_valid
 
 
 class TestUsernameValidator:
@@ -82,7 +87,8 @@ class TestUsernameValidator:
         """Тест валидных имен пользователей"""
         valid_usernames = ["user123", "my_user", "TestUser", "user_123"]
         for username in valid_usernames:
-            assert UsernameValidator.validate_username(username) is True
+            is_valid, errors = UsernameValidator.validate_username(username)
+            assert is_valid
 
     def test_invalid_usernames(self):
         """Тест невалидных имен пользователей"""
@@ -95,7 +101,8 @@ class TestUsernameValidator:
             "",  # пустое
         ]
         for username in invalid_usernames:
-            assert UsernameValidator.validate_username(username) is False
+            is_valid, errors = UsernameValidator.validate_username(username)
+            assert not is_valid
 
 
 class TestUUIDValidator:
@@ -110,10 +117,9 @@ class TestUUIDValidator:
     def test_invalid_uuid(self):
         """Тест невалидного UUID"""
         invalid_uuid = "invalid-uuid"
-        with pytest.raises(HTTPException) as exc_info:
+        with pytest.raises(ValueError) as exc_info:
             validate_uuid(invalid_uuid, "UUID")
-        assert exc_info.value.status_code == 400
-        assert "Неверный формат" in exc_info.value.detail
+        assert "UUID имеет неверный формат" in str(exc_info.value)
 
     def test_optional_uuid_none(self):
         """Тест опционального UUID с None"""
@@ -129,6 +135,6 @@ class TestUUIDValidator:
     def test_optional_uuid_invalid(self):
         """Тест опционального UUID с невалидным значением"""
         invalid_uuid = "invalid-uuid"
-        with pytest.raises(HTTPException) as exc_info:
+        with pytest.raises(ValueError) as exc_info:
             validate_uuid_optional(invalid_uuid, "UUID")
-        assert exc_info.value.status_code == 400
+        assert "UUID имеет неверный формат" in str(exc_info.value)

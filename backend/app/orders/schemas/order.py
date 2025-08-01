@@ -1,13 +1,14 @@
-from pydantic import BaseModel, Field
-from typing import Optional, List
 from datetime import datetime
 from decimal import Decimal
+from typing import List, Optional
+
+from pydantic import BaseModel, Field
 
 
 class OrderItemBase(BaseModel):
-    item_uuid: str  =  Field(..., description = "UUID товара")
-    quantity: int  =  Field(..., gt = 0)
-    price: Decimal  =  Field(..., ge = 0)
+    item_uuid: str = Field(..., description="UUID товара")
+    quantity: int = Field(..., gt=0)
+    price: Decimal = Field(..., ge=0)
 
 
 class OrderItemCreate(OrderItemBase):
@@ -15,18 +16,18 @@ class OrderItemCreate(OrderItemBase):
 
 
 class OrderItemResponse(OrderItemBase):
-    uuid: str  =  Field(..., description = "UUID элемента заказа")
-    order_uuid: str  =  Field(..., description = "UUID заказа")
+    uuid: str = Field(..., description="UUID элемента заказа")
+    order_uuid: str = Field(..., description="UUID заказа")
     created_at: datetime
 
     class Config:
-        from_attributes  =  True
+        from_attributes = True
 
 
 class OrderBase(BaseModel):
-    user_uuid: str  =  Field(..., description = "UUID пользователя")
-    total_amount: Decimal  =  Field(..., ge = 0)
-    status: str  =  Field(default = "pending", max_length = 50)
+    user_uuid: str = Field(..., description="UUID пользователя")
+    total_amount: Decimal = Field(..., ge=0)
+    status: str = Field(default="pending", max_length=50)
 
 
 class OrderCreate(OrderBase):
@@ -34,15 +35,15 @@ class OrderCreate(OrderBase):
 
 
 class OrderUpdate(BaseModel):
-    total_amount: Optional[Decimal]  =  Field(None, ge = 0)
-    status: Optional[str]  =  Field(None, max_length = 50)
+    total_amount: Optional[Decimal] = Field(None, ge=0)
+    status: Optional[str] = Field(None, max_length=50)
 
 
 class OrderResponse(OrderBase):
-    uuid: str  =  Field(..., description = "UUID заказа")
+    uuid: str = Field(..., description="UUID заказа")
     created_at: datetime
-    updated_at: Optional[datetime]  =  None
-    order_items: List[OrderItemResponse]  =  []
+    updated_at: Optional[datetime] = None
+    order_items: List[OrderItemResponse] = []
 
     class Config:
-        from_attributes  =  True
+        from_attributes = True

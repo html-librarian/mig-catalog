@@ -1,126 +1,126 @@
 #!/usr/bin/env python3
 """
 Скрипт для управления миграциями базы данных
+Использует Alembic для управления миграциями
 """
 
-import os
-import sys
+import argparse
 import subprocess
 from pathlib import Path
 
-def run_command(command: str) -> bool:
-    """Выполнить команду и вернуть результат"""
+
+def run_alembic_command(args):
+    """Запустить команду Alembic"""
     try:
-        result = subprocess.run(command.split(), capture_output=True, text=True)
-        if result.returncode == 0:
-            print(f"✅ {command}")
-            if result.stdout:
-                print(result.stdout)
-            return True
-        else:
-            print(f"❌ {command}")
-            print(f"Ошибка: {result.stderr}")
-            return False
-    except Exception as e:
-        print(f"❌ Ошибка выполнения команды '{command}': {e}")
+        result = subprocess.run(
+            ["alembic"] + args,
+            cwd=Path(__file__).parent,
+            capture_output=True,
+            text=True,
+            check=True,
+        )
+        print(result.stdout)
+        return True
+    except subprocess.CalledProcessError as e:
+        print(f"Ошибка выполнения команды Alembic: {e}")
+        print(f"Вывод ошибки: {e.stderr}")
+        return False
+    except FileNotFoundError:
+        print("Ошибка: Alembic не найден. Убедитесь, что он установлен.")
         return False
 
-def init_migrations():
-    """Инициализировать миграции"""
-    print("🚀 Инициализация миграций...")
-    if run_command("alembic init migrations"):
-        print("✅ Миграции инициализированы")
-    else:
-        print("❌ Ошибка инициализации миграций")
 
-def create_migration(message: str):
-    """Создать новую миграцию"""
-    print(f"📝 Создание миграции: {message}")
-    if run_command(f'alembic revision --autogenerate -m "{message}"'):
-        print("✅ Миграция создана")
-    else:
-        print("❌ Ошибка создания миграции")
+def show_status():
+    """Показать статус миграций"""
+    print("📊 Статус миграций:")
+    run_alembic_command(["current"])
+    print("\n📋 История миграций:")
+    run_alembic_command(["history"])
 
-def upgrade_database():
-    """Обновить базу данных до последней версии"""
-    print("⬆️ Обновление базы данных...")
-    if run_command("alembic upgrade head"):
-        print("✅ База данных обновлена")
-    else:
-        print("❌ Ошибка обновления базы данных")
 
-def downgrade_database(revision: str = "-1"):
-    """Откатить базу данных"""
-    print(f"⬇️ Откат базы данных к ревизии: {revision}")
-    if run_command(f"alembic downgrade {revision}"):
-        print("✅ База данных откачена")
-    else:
-        print("❌ Ошибка отката базы данных")
+def upgrade_migrations(revision="head"):
+    """Обновить миграции"""
+    print(f"🔄 Обновление миграций до {revision}...")
+    if run_alembic_command(["upgrade", revision]):
+        print("✅ Миграции успешно обновлены!")
+        show_status()
 
-def show_migration_history():
-    """Показать историю миграций"""
-    print("📋 История миграций:")
-    run_command("alembic history")
 
-def show_current_revision():
-    """Показать текущую ревизию"""
-    print("📍 Текущая ревизия:")
-    run_command("alembic current")
+def downgrade_migrations(revision="-1"):
+    """Откатить миграции"""
+    print(f"⏪ Откат миграций на {revision}...")
+    if run_alembic_command(["downgrade", revision]):
+        print("✅ Миграции успешно откачены!")
+        show_status()
 
-def show_pending_migrations():
-    """Показать ожидающие миграции"""
-    print("⏳ Ожидающие миграции:")
-    run_command("alembic show")
 
-def main():
-    """Основная функция"""
-    if len(sys.argv) < 2:
-        print("""
-🔧 Скрипт управления миграциями
-
-Использование:
-    python manage_migrations.py <команда> [аргументы]
-
-Команды:
-    init                    - Инициализировать миграции
-    create <сообщение>      - Создать новую миграцию
-    upgrade                 - Обновить базу данных
-    downgrade [ревизия]     - Откатить базу данных
-    history                 - Показать историю миграций
-    current                 - Показать текущую ревизию
-    pending                 - Показать ожидающие миграции
-
-Примеры:
-    python manage_migrations.py init
-    python manage_migrations.py create "Add users table"
-    python manage_migrations.py upgrade
-    python manage_migrations.py downgrade
-        """)
+def reset_database():
+    """Сбросить базу данных"""
+    print("⚠️  ВНИМАНИЕ: Это удалит все данные!")
+    confirm = input("Продолжить? (y/N): ")
+    if confirm.lower() != "y":
+        print("❌ Операция отменена.")
         return
 
-    command = sys.argv[1]
-    
-    if command == "init":
-        init_migrations()
-    elif command == "create":
-        if len(sys.argv) < 3:
-            print("❌ Укажите сообщение для миграции")
-            return
-        message = sys.argv[2]
-        create_migration(message)
-    elif command == "upgrade":
-        upgrade_database()
-    elif command == "downgrade":
-        revision = sys.argv[2] if len(sys.argv) > 2 else "-1"
-        downgrade_database(revision)
-    elif command == "history":
-        show_migration_history()
-    elif command == "current":
-        show_current_revision()
-    elif command == "pending":
-        show_pending_migrations()
-    else:
-        print(f"❌ Неизвестная команда: {command}")
+    print("🔄 Сброс базы данных...")
+    if run_alembic_command(["downgrade", "base"]):
+        print("✅ База данных сброшена!")
+        print("🔄 Применение миграций...")
+        if run_alembic_command(["upgrade", "head"]):
+            print("✅ База данных восстановлена!")
+            show_status()
+
+
+def create_migration(message):
+    """Создать новую миграцию"""
+    print(f"📝 Создание новой миграции: {message}")
+    if run_alembic_command(["revision", "--autogenerate", "-m", message]):
+        print("✅ Миграция создана!")
+        show_status()
+
+
+def main():
+    parser = argparse.ArgumentParser(
+        description="Управление миграциями базы данных",
+        formatter_class=argparse.RawDescriptionHelpFormatter,
+        epilog="""
+Примеры использования:
+  python manage_migrations.py status          # Показать статус
+  python manage_migrations.py upgrade        # Обновить до последней версии
+  python manage_migrations.py upgrade 001    # Обновить до конкретной версии
+  python manage_migrations.py downgrade      # Откатить на одну версию
+  python manage_migrations.py downgrade base # Откатить до начала
+  python manage_migrations.py reset          # Сбросить базу данных
+  python manage_migrations.py create "Add users table"  # Создать миграцию
+        """,
+    )
+
+    parser.add_argument(
+        "action",
+        choices=["status", "upgrade", "downgrade", "reset", "create"],
+        help="Действие для выполнения",
+    )
+
+    parser.add_argument(
+        "revision",
+        nargs="?",
+        default="head",
+        help="Ревизия для upgrade/downgrade или сообщение для create",
+    )
+
+    args = parser.parse_args()
+
+    if args.action == "status":
+        show_status()
+    elif args.action == "upgrade":
+        upgrade_migrations(args.revision)
+    elif args.action == "downgrade":
+        downgrade_migrations(args.revision)
+    elif args.action == "reset":
+        reset_database()
+    elif args.action == "create":
+        create_migration(args.revision)
+
 
 if __name__ == "__main__":
-    main() 
+    main()

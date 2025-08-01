@@ -1,11 +1,17 @@
 from typing import List, Optional
-from pydantic import BaseSettings, validator
+
+try:
+    from pydantic_settings import BaseSettings
+except ImportError:
+    from pydantic import BaseSettings
+
 from dotenv import load_dotenv
+from pydantic import field_validator
 
 load_dotenv()
 
 
-class Settings(BaseSettings):  # type: ignore
+class Settings(BaseSettings):
     """Настройки приложения с валидацией"""
 
     # Основные настройки
@@ -31,7 +37,7 @@ class Settings(BaseSettings):  # type: ignore
     ACCESS_TOKEN_EXPIRE_MINUTES: int = 30
 
     # CORS
-    ALLOWED_ORIGINS: List[str] = ["http://localhost:3000", "http://localhost:8080"]
+    ALLOWED_ORIGINS: str = "http://localhost:3000,http://localhost:8080"
 
     # Логирование
     LOG_LEVEL: str = "INFO"
@@ -50,18 +56,20 @@ class Settings(BaseSettings):  # type: ignore
     METRICS_ENABLED: bool = True
     HEALTH_CHECK_ENABLED: bool = True
 
-    @validator("SECRET_KEY")
+    @field_validator("SECRET_KEY")
+    @classmethod
     def validate_secret_key(cls, v):
         if not v:
             raise ValueError("SECRET_KEY must be set")
         if len(v) < 64:  # Увеличиваем минимальную длину
             raise ValueError("SECRET_KEY must be at least 64 characters long")
-        if ("default" in v.lower() or "your-secret" in v.lower() or 
-                "your-super-secret" in v.lower()):
+        default_patterns = ["default", "your-secret", "your-super-secret"]
+        if any(pattern in v.lower() for pattern in default_patterns):
             raise ValueError("SECRET_KEY must be changed from default value")
         return v
 
-    @validator("DATABASE_URL")
+    @field_validator("DATABASE_URL")
+    @classmethod
     def validate_database_url(cls, v):
         if not v:
             raise ValueError("DATABASE_URL must be set")
@@ -69,7 +77,8 @@ class Settings(BaseSettings):  # type: ignore
             raise ValueError("DATABASE_URL must be a valid PostgreSQL URL")
         return v
 
-    @validator("REDIS_URL")
+    @field_validator("REDIS_URL")
+    @classmethod
     def validate_redis_url(cls, v):
         if not v:
             raise ValueError("REDIS_URL must be set")
@@ -77,20 +86,27 @@ class Settings(BaseSettings):  # type: ignore
             raise ValueError("REDIS_URL must be a valid Redis URL")
         return v
 
-    @validator("ALLOWED_ORIGINS", pre=True)
-    def validate_allowed_origins(cls, v):
-        if isinstance(v, str):
-            return [origin.strip() for origin in v.split(",")]
-        return v
+    @property
+    def allowed_origins_list(self) -> List[str]:
+        """Получить список разрешенных origins"""
+        if not self.ALLOWED_ORIGINS:
+            return ["http://localhost:3000", "http://localhost:8080"]
+        return [
+            origin.strip()
+            for origin in self.ALLOWED_ORIGINS.split(",")
+            if origin.strip()
+        ]
 
-    @validator("ENVIRONMENT")
+    @field_validator("ENVIRONMENT")
+    @classmethod
     def validate_environment(cls, v):
         allowed = ["development", "staging", "production", "testing"]
         if v not in allowed:
             raise ValueError(f"ENVIRONMENT must be one of {allowed}")
         return v
 
-    @validator("LOG_LEVEL")
+    @field_validator("LOG_LEVEL")
+    @classmethod
     def validate_log_level(cls, v):
         allowed = ["DEBUG", "INFO", "WARNING", "ERROR", "CRITICAL"]
         if v.upper() not in allowed:
@@ -100,6 +116,7 @@ class Settings(BaseSettings):  # type: ignore
     class Config:
         env_file = ".env"
         case_sensitive = True
+        extra = "ignore"  # Игнорировать дополнительные поля
 
 
 # Создаем экземпляр настроек
@@ -119,16 +136,24 @@ def validate_production_settings():
             raise ValueError("DEBUG must be False in production")
 
         if not settings.SECRET_KEY or len(settings.SECRET_KEY) < 64:
-            raise ValueError("SECRET_KEY must be at least 64 characters in production")
+            raise ValueError(
+                "SECRET_KEY must be at least 64 characters in production"
+            )
 
         if "localhost" in settings.DATABASE_URL:
-            raise ValueError("DATABASE_URL must not contain localhost in production")
+            raise ValueError(
+                "DATABASE_URL must not contain localhost in production"
+            )
 
         if "localhost" in settings.REDIS_URL:
-            raise ValueError("REDIS_URL must not contain localhost in production")
+            raise ValueError(
+                "REDIS_URL must not contain localhost in production"
+            )
 
-        if "*" in settings.ALLOWED_ORIGINS:
-            raise ValueError("ALLOWED_ORIGINS must not contain wildcards in production")
+        if "*" in settings.allowed_origins_list:
+            raise ValueError(
+                "ALLOWED_ORIGINS must not contain wildcards in production"
+            )
 
         # Проверяем, что ROTATION_SECRET_KEY установлен в продакшене
         if not settings.ROTATION_SECRET_KEY:
