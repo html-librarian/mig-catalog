@@ -1,208 +1,273 @@
+"""
+Middleware для обработки запросов, логирования и безопасности
+"""
+
 import time
-import uuid
-import json
+from typing import Callable
+
 from fastapi import Request, Response
+from fastapi.responses import JSONResponse
 from starlette.middleware.base import BaseHTTPMiddleware
+
 from app.core.logging import get_logger
-from app.core.rate_limiter import rate_limiter
+from app.core.monitoring import record_request_metrics
 from app.core.security import security_manager
 
 logger = get_logger("middleware")
 
 
 class LoggingMiddleware(BaseHTTPMiddleware):
-    """Улучшенный middleware для логирования запросов"""
+    """Middleware для логирования запросов"""
 
-    def __init__(self, app):
-        super().__init__(app)
-        self.sensitive_headers = {'authorization', 'cookie', 'x-api-key'}
-        self.sensitive_paths = {'/api/v1/auth/login', '/api/v1/auth/register'}
-
-    def _mask_sensitive_data(self, data: dict) -> dict:
-        """Маскирует чувствительные данные"""
-        masked = data.copy()
-        sensitive_fields = {'password', 'token', 'secret', 'key'}
-
-        for field in sensitive_fields:
-            if field in masked:
-                masked[field] = '***MASKED***'
-
-        return masked
-
-    def _get_client_ip(self, request: Request) -> str:
-        """Получает реальный IP адрес клиента"""
-        # Проверяем заголовки прокси
-        forwarded_for = request.headers.get('x-forwarded-for')
-        if forwarded_for:
-            return forwarded_for.split(',')[0].strip()
-
-        real_ip = request.headers.get('x-real-ip')
-        if real_ip:
-            return real_ip
-
-        return request.client.host if request.client else "unknown"
-
-    def _should_log_request_body(self, path: str) -> bool:
-        """Определяет, нужно ли логировать тело запроса"""
-        return path in self.sensitive_paths
-
-    async def dispatch(self, request: Request, call_next):
-        # Генерируем correlation ID
-        correlation_id = str(uuid.uuid4())
-        request.state.correlation_id = correlation_id
-
+    async def dispatch(
+        self, request: Request, call_next: Callable
+    ) -> Response:
         start_time = time.time()
-        client_ip = self._get_client_ip(request)
 
-        # Проверяем, не заблокирован ли IP
-        if security_manager.is_ip_blacklisted(client_ip):
-            logger.warning(f"Blocked request from blacklisted IP: {client_ip}")
-            return Response(
-                status_code=429,
-                content=json.dumps({
-                    "detail": "IP заблокирован из-за множественных неудачных попыток",
-                    "correlation_id": correlation_id
-                }),
-                media_type="application/json"
-            )
-
-        # Логируем входящий запрос
-        log_data = {
-            "correlation_id": correlation_id,
-            "method": request.method,
-            "path": request.url.path,
-            "query_params": dict(request.query_params),
-            "client_ip": client_ip,
-            "user_agent": request.headers.get("user-agent", ""),
-            "timestamp": time.time()
-        }
-
-        # Добавляем заголовки (исключая чувствительные)
-        headers = dict(request.headers)
-        for header in self.sensitive_headers:
-            if header in headers:
-                headers[header] = "***MASKED***"
-        log_data["headers"] = headers
-
-        # Логируем тело запроса для чувствительных эндпоинтов
-        if self._should_log_request_body(request.url.path):
-            try:
-                body = await request.body()
-                if body:
-                    body_str = body.decode('utf-8')
-                    try:
-                        body_json = json.loads(body_str)
-                        masked_body = self._mask_sensitive_data(body_json)
-                        log_data["request_body"] = masked_body
-                    except json.JSONDecodeError:
-                        log_data["request_body"] = "***NON_JSON_BODY***"
-            except Exception as e:
-                log_data["request_body_error"] = str(e)
-
-        logger.info(f"Request started: {json.dumps(log_data, ensure_ascii=False)}")
+        # Логируем начало запроса
+        logger.info(
+            f"Request started: {request.method} {request.url.path}",
+            extra={
+                "method": request.method,
+                "path": request.url.path,
+                "client_ip": (
+                    request.client.host if request.client else "unknown"
+                ),
+                "user_agent": request.headers.get("user-agent", "unknown"),
+            },
+        )
 
         try:
-            # Проверяем rate limit для всех запросов
-            try:
-                rate_limiter.check_rate_limit(
-                    identifier=client_ip,
-                    endpoint=request.url.path
-                )
-            except Exception as rate_limit_error:
-                # Записываем неудачную попытку
-                security_manager.record_failed_attempt(client_ip, request.url.path)
-                
-                rate_limit_data = {
-                    'correlation_id': correlation_id,
-                    'client_ip': client_ip,
-                    'path': request.url.path,
-                    'error': str(rate_limit_error)
-                }
-                logger.warning(
-                    f"Rate limit exceeded: {json.dumps(rate_limit_data, ensure_ascii=False)}"
-                )
-                raise rate_limit_error
-
             response = await call_next(request)
 
-            # Логируем успешный ответ
+            # Рассчитываем время выполнения
             process_time = time.time() - start_time
-            response_log = {
-                "correlation_id": correlation_id,
-                "status_code": response.status_code,
-                "process_time": round(process_time, 3),
-                "content_length": response.headers.get("content-length", 0)
-            }
 
-            logger.info(f"Request completed: {json.dumps(response_log, ensure_ascii=False)}")
+            # Логируем успешный ответ
+            logger.info(
+                f"Request completed: {request.method} {request.url.path} - "
+                f"{response.status_code} ({process_time:.3f}s)",
+                extra={
+                    "method": request.method,
+                    "path": request.url.path,
+                    "status_code": response.status_code,
+                    "process_time": process_time,
+                    "client_ip": (
+                        request.client.host if request.client else "unknown"
+                    ),
+                },
+            )
 
-            # Добавляем correlation ID в заголовки ответа
-            response.headers["X-Correlation-ID"] = correlation_id
-            response.headers["X-Process-Time"] = str(round(process_time, 3))
+            # Записываем метрики
+            record_request_metrics(
+                request.url.path,
+                request.method,
+                response.status_code,
+                process_time,
+            )
 
             return response
 
         except Exception as e:
-            # Логируем ошибку
+            # Рассчитываем время выполнения
             process_time = time.time() - start_time
-            error_log = {
-                "correlation_id": correlation_id,
-                "method": request.method,
-                "path": request.url.path,
-                "client_ip": client_ip,
-                "process_time": round(process_time, 3),
-                "error_type": type(e).__name__,
-                "error_message": str(e)
-            }
 
-            logger.error(f"Request failed: {json.dumps(error_log, ensure_ascii=False)}")
+            # Логируем ошибку
+            logger.error(
+                f"Request failed: {request.method} {request.url.path} - "
+                f"Error: {str(e)} ({process_time:.3f}s)",
+                extra={
+                    "method": request.method,
+                    "path": request.url.path,
+                    "error": str(e),
+                    "process_time": process_time,
+                    "client_ip": (
+                        request.client.host if request.client else "unknown"
+                    ),
+                },
+            )
+
+            # Записываем метрики ошибки
+            record_request_metrics(
+                request.url.path, request.method, 500, process_time
+            )
+
             raise
 
 
 class ErrorHandlingMiddleware(BaseHTTPMiddleware):
-    """Улучшенный middleware для обработки ошибок"""
+    """Middleware для обработки ошибок"""
 
-    async def dispatch(self, request: Request, call_next):
+    async def dispatch(
+        self, request: Request, call_next: Callable
+    ) -> Response:
         try:
-            response = await call_next(request)
-            return response
+            return await call_next(request)
         except Exception as e:
-            # Получаем correlation ID
-            correlation_id = getattr(request.state, 'correlation_id', 'unknown')
+            # Логируем необработанную ошибку
+            logger.error(
+                f"Unhandled exception: {str(e)}",
+                extra={
+                    "method": request.method,
+                    "path": request.url.path,
+                    "client_ip": (
+                        request.client.host if request.client else "unknown"
+                    ),
+                    "error_type": type(e).__name__,
+                    "error_message": str(e),
+                },
+            )
 
-            # Логируем ошибку без чувствительной информации
-            error_data = {
-                "correlation_id": correlation_id,
-                "method": request.method,
-                "path": request.url.path,
-                "error_type": type(e).__name__,
-                "error_message": str(e)
-            }
-
-            logger.error(f"Unhandled error: {json.dumps(error_data, ensure_ascii=False)}")
-
-            # Возвращаем стандартную ошибку 500 без раскрытия деталей
-            from fastapi.responses import JSONResponse
+            # Возвращаем стандартную ошибку
             return JSONResponse(
                 status_code=500,
                 content={
-                    "detail": "Внутренняя ошибка сервера",
-                    "error_code": "INTERNAL_SERVER_ERROR",
-                    "correlation_id": correlation_id
+                    "error": "Internal server error",
+                    "message": "Произошла внутренняя ошибка сервера",
+                    "timestamp": time.time(),
                 },
-                headers={"X-Correlation-ID": correlation_id}
             )
 
 
 class SecurityHeadersMiddleware(BaseHTTPMiddleware):
     """Middleware для добавления заголовков безопасности"""
 
-    async def dispatch(self, request: Request, call_next):
+    async def dispatch(
+        self, request: Request, call_next: Callable
+    ) -> Response:
         response = await call_next(request)
-        
-        # Добавляем заголовки безопасности
-        security_headers = security_manager.get_security_headers()
+
+        # Не применяем CSP для документации, чтобы ReDoc работал
+        if request.url.path in ["/docs", "/redoc", "/openapi.json"]:
+            security_headers = {
+                "X-Content-Type-Options": "nosniff",
+                "X-Frame-Options": "DENY",
+                "X-XSS-Protection": "1; mode=block",
+                "Referrer-Policy": "strict-origin-when-cross-origin",
+            }
+        else:
+            # Добавляем заголовки безопасности для остальных эндпоинтов
+            security_headers = {
+                "X-Content-Type-Options": "nosniff",
+                "X-Frame-Options": "DENY",
+                "X-XSS-Protection": "1; mode=block",
+                "Strict-Transport-Security": "max-age=31536000; includeSubDomains",
+                "Content-Security-Policy": (
+                    "default-src 'self'; script-src 'self' 'unsafe-inline' "
+                    "'unsafe-eval' blob: https://cdn.jsdelivr.net; style-src "
+                    "'self' 'unsafe-inline' https://cdn.jsdelivr.net "
+                    "https://fonts.googleapis.com; img-src 'self' data: https: "
+                    "blob:; font-src 'self' https://cdn.jsdelivr.net "
+                    "https://fonts.gstatic.com; worker-src 'self' blob:;"
+                ),
+                "Referrer-Policy": "strict-origin-when-cross-origin",
+                "Permissions-Policy": "geolocation=(), microphone=(), camera=()",
+            }
+
         for header, value in security_headers.items():
             response.headers[header] = value
-        
+
+        return response
+
+
+class RateLimitingMiddleware(BaseHTTPMiddleware):
+    """Middleware для rate limiting"""
+
+    async def dispatch(
+        self, request: Request, call_next: Callable
+    ) -> Response:
+        # Получаем IP клиента
+        client_ip = request.client.host if request.client else "unknown"
+
+        # Проверяем, не заблокирован ли IP
+        if security_manager.is_ip_blacklisted(client_ip):
+            logger.warning(f"Blocked request from blacklisted IP: {client_ip}")
+            return JSONResponse(
+                status_code=429,
+                content={
+                    "error": "Too many requests",
+                    "message": (
+                        "IP заблокирован из-за множественных "
+                        "неудачных попыток"
+                    ),
+                },
+            )
+
+        # Проверяем rate limiting
+        try:
+            # Здесь можно добавить более сложную логику rate limiting
+            # Пока просто пропускаем запрос
+            pass
+        except Exception as e:
+            logger.error(f"Rate limiting error: {e}")
+            # В случае ошибки rate limiting пропускаем запрос
+
+        return await call_next(request)
+
+
+class RequestValidationMiddleware(BaseHTTPMiddleware):
+    """Middleware для валидации запросов"""
+
+    async def dispatch(
+        self, request: Request, call_next: Callable
+    ) -> Response:
+        # Проверяем размер запроса
+        content_length = request.headers.get("content-length")
+        if content_length and int(content_length) > 10 * 1024 * 1024:  # 10MB
+            return JSONResponse(
+                status_code=413,
+                content={
+                    "error": "Request too large",
+                    "message": "Размер запроса превышает допустимый лимит",
+                },
+            )
+
+        # Проверяем Content-Type для POST/PUT запросов
+        if request.method in ["POST", "PUT", "PATCH"]:
+            content_type = request.headers.get("content-type", "")
+            if not content_type.startswith(
+                ("application/json", "multipart/form-data")
+            ):
+                return JSONResponse(
+                    status_code=415,
+                    content={
+                        "error": "Unsupported media type",
+                        "message": "Неподдерживаемый тип контента",
+                    },
+                )
+
+        return await call_next(request)
+
+
+class PerformanceMonitoringMiddleware(BaseHTTPMiddleware):
+    """Middleware для мониторинга производительности"""
+
+    async def dispatch(
+        self, request: Request, call_next: Callable
+    ) -> Response:
+        start_time = time.time()
+
+        # Добавляем заголовок для отслеживания времени
+        response = await call_next(request)
+
+        process_time = time.time() - start_time
+
+        # Добавляем заголовок с временем обработки
+        response.headers["X-Process-Time"] = str(process_time)
+
+        # Логируем медленные запросы
+        if process_time > 1.0:  # Больше 1 секунды
+            logger.warning(
+                f"Slow request: {request.method} {request.url.path} "
+                f"took {process_time:.3f}s",
+                extra={
+                    "method": request.method,
+                    "path": request.url.path,
+                    "process_time": process_time,
+                    "client_ip": (
+                        request.client.host if request.client else "unknown"
+                    ),
+                },
+            )
+
         return response

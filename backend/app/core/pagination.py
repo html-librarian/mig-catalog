@@ -1,14 +1,17 @@
-from typing import TypeVar, Generic, List, Optional
-from pydantic import BaseModel, Field
-from fastapi import Query
 from math import ceil
+from typing import Generic, List, Optional, TypeVar
 
-T  =  TypeVar('T')
+from fastapi import Query
+from pydantic import BaseModel, Field
+
+T = TypeVar("T")
+
 
 class PaginationParams(BaseModel):
     """Параметры пагинации"""
-    page: int  =  Field(1, ge = 1, description = "Номер страницы")
-    size: int  =  Field(10, ge = 1, le = 100, description = "Размер страницы")
+
+    page: int = Field(1, ge=1, description="Номер страницы")
+    size: int = Field(10, ge=1, le=100, description="Размер страницы")
 
     @property
     def skip(self) -> int:
@@ -23,6 +26,7 @@ class PaginationParams(BaseModel):
 
 class PaginatedResponse(BaseModel, Generic[T]):
     """Ответ с пагинацией"""
+
     items: List[T]
     total: int
     page: int
@@ -32,26 +36,28 @@ class PaginatedResponse(BaseModel, Generic[T]):
     has_prev: bool
 
     @classmethod
-    def create(cls, items: List[T], total: int, page: int, size: int) -> "PaginatedResponse[T]":
+    def create(
+        cls, items: List[T], total: int, page: int, size: int
+    ) -> "PaginatedResponse[T]":
         """Создать ответ с пагинацией"""
-        pages  =  ceil(total / size) if total > 0 else 0
+        pages = ceil(total / size) if total > 0 else 0
         return cls(
-            items = items,
-            total = total,
-            page = page,
-            size = size,
-            pages = pages,
-            has_next = page < pages,
-            has_prev = page > 1
+            items=items,
+            total=total,
+            page=page,
+            size=size,
+            pages=pages,
+            has_next=page < pages,
+            has_prev=page > 1,
         )
 
 
 def get_pagination_params(
-    page: int  =  Query(1, ge = 1, description = "Номер страницы"),
-    size: int  =  Query(10, ge = 1, le = 100, description = "Размер страницы")
+    page: int = Query(1, ge=1, description="Номер страницы"),
+    size: int = Query(10, ge=1, le=100, description="Размер страницы"),
 ) -> PaginationParams:
     """Получить параметры пагинации из запроса"""
-    return PaginationParams(page = page, size = size)
+    return PaginationParams(page=page, size=size)
 
 
 class PaginationHelper:
@@ -85,7 +91,7 @@ class PaginationHelper:
     @staticmethod
     def get_page_info(page: int, size: int, total: int) -> dict:
         """Получить информацию о странице"""
-        total_pages  =  PaginationHelper.calculate_pages(total, size)
+        total_pages = PaginationHelper.calculate_pages(total, size)
 
         return {
             "current_page": page,
@@ -95,27 +101,29 @@ class PaginationHelper:
             "has_next": PaginationHelper.has_next_page(page, total_pages),
             "has_prev": PaginationHelper.has_prev_page(page),
             "offset": PaginationHelper.get_offset(page, size),
-            "limit": PaginationHelper.get_limit(size)
+            "limit": PaginationHelper.get_limit(size),
         }
 
 
 class CursorPaginationParams(BaseModel):
     """Параметры курсорной пагинации"""
-    cursor: Optional[str]  =  None
-    limit: int  =  Field(10, ge = 1, le = 100, description = "Количество записей")
+
+    cursor: Optional[str] = None
+    limit: int = Field(10, ge=1, le=100, description="Количество записей")
 
 
 class CursorPaginatedResponse(BaseModel, Generic[T]):
     """Ответ с курсорной пагинацией"""
+
     items: List[T]
-    next_cursor: Optional[str]  =  None
-    prev_cursor: Optional[str]  =  None
-    has_more: bool  =  False
+    next_cursor: Optional[str] = None
+    prev_cursor: Optional[str] = None
+    has_more: bool = False
 
 
 def get_cursor_pagination_params(
-    cursor: Optional[str]  =  Query(None, description = "Курсор для пагинации"),
-    limit: int  =  Query(10, ge = 1, le = 100, description = "Количество записей")
+    cursor: Optional[str] = Query(None, description="Курсор для пагинации"),
+    limit: int = Query(10, ge=1, le=100, description="Количество записей"),
 ) -> CursorPaginationParams:
     """Получить параметры курсорной пагинации из запроса"""
-    return CursorPaginationParams(cursor = cursor, limit = limit)
+    return CursorPaginationParams(cursor=cursor, limit=limit)

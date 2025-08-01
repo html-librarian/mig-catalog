@@ -1,9 +1,17 @@
-from logging.config import fileConfig
-from sqlalchemy import engine_from_config
-from sqlalchemy import pool
-from alembic import context
 import os
+from logging.config import fileConfig
+
+from alembic import context
 from dotenv import load_dotenv
+from sqlalchemy import engine_from_config, pool
+
+from app.catalog.models.item import Item  # noqa
+
+# Импорты моделей для autogenerate
+from app.db.base_class import Base  # noqa
+from app.news.models.article import Article  # noqa
+from app.orders.models.order import Order, OrderItem  # noqa
+from app.users.models.user import User  # noqa
 
 # Загружаем переменные окружения
 load_dotenv()
@@ -17,14 +25,6 @@ config = context.config
 if config.config_file_name is not None:
     fileConfig(config.config_file_name)
 
-# add your model's MetaData object here
-# for 'autogenerate' support
-from app.db.base import Base
-from app.users.models.user import User
-from app.catalog.models.item import Item
-from app.orders.models.order import Order, OrderItem
-from app.news.models.article import Article
-
 target_metadata = Base.metadata
 
 # other values from the config, defined by the needs of env.py,
@@ -35,7 +35,10 @@ target_metadata = Base.metadata
 
 def get_url():
     """Получаем URL базы данных из переменных окружения"""
-    return os.getenv("DATABASE_URL", "postgresql://postgres:postgres@localhost/mig_catalog")
+    return os.getenv(
+        "DATABASE_URL",
+        "postgresql://postgres:postgres@localhost/mig_catalog",
+    )
 
 
 def run_migrations_offline() -> None:
@@ -71,7 +74,6 @@ def run_migrations_online() -> None:
     """
     configuration = config.get_section(config.config_ini_section)
     configuration["sqlalchemy.url"] = get_url()
-    
     connectable = engine_from_config(
         configuration,
         prefix="sqlalchemy.",
@@ -90,4 +92,4 @@ def run_migrations_online() -> None:
 if context.is_offline_mode():
     run_migrations_offline()
 else:
-    run_migrations_online() 
+    run_migrations_online()
