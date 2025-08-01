@@ -1,0 +1,347 @@
+# =============================================================================
+# BACKEND - GIT IGNORE
+# =============================================================================
+# Специфичные исключения для backend директории
+# =============================================================================
+
+# =============================================================================
+# PYTHON SPECIFIC
+# =============================================================================
+
+# Byte-compiled / optimized / DLL files
+__pycache__/
+*.py[cod]
+*$py.class
+
+# C extensions
+*.so
+
+# Distribution / packaging
+.Python
+build/
+develop-eggs/
+dist/
+downloads/
+eggs/
+.eggs/
+lib/
+lib64/
+parts/
+sdist/
+var/
+wheels/
+share/python-wheels/
+*.egg-info/
+.installed.cfg
+*.egg
+MANIFEST
+
+# PyInstaller
+*.manifest
+*.spec
+
+# Installer logs
+pip-log.txt
+pip-delete-this-directory.txt
+
+# Unit test / coverage reports
+htmlcov/
+.tox/
+.nox/
+.coverage
+.coverage.*
+.cache
+nosetests.xml
+coverage.xml
+*.cover
+*.py,cover
+.hypothesis/
+.pytest_cache/
+cover/
+
+# Translations
+*.mo
+*.pot
+
+# Environments
+.env
+.venv
+env/
+venv/
+ENV/
+env.bak/
+venv.bak/
+
+# Spyder project settings
+.spyderproject
+.spyproject
+
+# Rope project settings
+.ropeproject
+
+# mkdocs documentation
+/site
+
+# mypy
+.mypy_cache/
+.dmypy.json
+dmypy.json
+
+# Pyre type checker
+.pyre/
+
+# pytype static type analyzer
+.pytype/
+
+# Cython debug symbols
+cython_debug/
+
+# =============================================================================
+# FASTAPI / UVICORN
+# =============================================================================
+
+# Uvicorn logs
+uvicorn.log
+*.log
+
+# FastAPI specific
+.pytest_cache/
+.coverage
+htmlcov/
+
+# =============================================================================
+# DATABASE
+# =============================================================================
+
+# SQLite
+*.db
+*.sqlite
+*.sqlite3
+
+# PostgreSQL
+*.sql
+*.dump
+*.backup
+
+# =============================================================================
+# REDIS
+# =============================================================================
+
+# Redis dump files
+dump.rdb
+*.rdb
+
+# Redis configuration
+redis.conf
+
+# =============================================================================
+# ENVIRONMENT & CONFIGURATION
+# =============================================================================
+
+# Environment variables
+.env
+.env.local
+.env.development
+.env.test
+.env.production
+.env.staging
+
+# Configuration files with secrets
+config.ini
+secrets.json
+secrets.yaml
+secrets.yml
+
+# =============================================================================
+# LOGS
+# =============================================================================
+
+# Application logs
+logs/
+*.log
+*.log.*
+
+# Log rotation
+*.log.1
+*.log.2
+*.log.3
+*.log.4
+*.log.5
+
+# =============================================================================
+# CACHE
+# =============================================================================
+
+# Python cache
+__pycache__/
+*.pyc
+*.pyo
+*.pyd
+.Python
+*.so
+
+# Redis cache
+*.rdb
+*.aof
+
+# Application cache
+.cache/
+cache/
+
+# =============================================================================
+# TESTING
+# =============================================================================
+
+# Test coverage
+.coverage
+coverage.xml
+htmlcov/
+.pytest_cache/
+
+# Test reports
+test-results/
+junit.xml
+
+# =============================================================================
+# DEVELOPMENT TOOLS
+# =============================================================================
+
+# VS Code
+.vscode/
+*.code-workspace
+
+# PyCharm
+.idea/
+*.iml
+*.ipr
+*.iws
+
+# Sublime Text
+*.sublime-project
+*.sublime-workspace
+
+# Vim
+*.swp
+*.swo
+*~
+
+# Emacs
+*~
+\#*\#
+/.emacs.desktop
+/.emacs.desktop.lock
+*.elc
+auto-save-list
+tramp
+.\#*
+
+# =============================================================================
+# SECURITY
+# =============================================================================
+
+# Private keys
+*.pem
+*.key
+*.crt
+*.p12
+*.pfx
+
+# Certificates
+*.cer
+*.der
+*.crt
+*.pem
+
+# SSH keys
+id_rsa
+id_rsa.pub
+id_ed25519
+id_ed25519.pub
+
+# =============================================================================
+# BACKUP FILES
+# =============================================================================
+
+# Backup files
+*.bak
+*.backup
+*.old
+*.orig
+*.save
+*.swp
+*.swo
+*~
+
+# =============================================================================
+# TEMPORARY FILES
+# =============================================================================
+
+# Temporary files
+*.tmp
+*.temp
+*.cache
+temp/
+tmp/
+
+# =============================================================================
+# BUILD & DEPLOYMENT
+# =============================================================================
+
+# Build artifacts
+build/
+dist/
+*.egg-info/
+
+# Deployment
+deploy/
+deployment/
+
+# =============================================================================
+# MONITORING & METRICS
+# =============================================================================
+
+# Metrics
+metrics/
+*.metrics
+
+# Monitoring
+monitoring/
+health_check.log
+
+# =============================================================================
+# PROJECT SPECIFIC
+# =============================================================================
+
+# MIG Catalog specific
+mig_catalog_*.log
+secrets/
+keys/
+certificates/
+
+# Database dumps
+dumps/
+backups/
+
+# Test data
+test_data/
+fixtures/
+
+# Generated files
+generated/
+output/
+
+# =============================================================================
+# PERFORMANCE & PROFILING
+# =============================================================================
+
+# Profiling
+*.prof
+*.profile
+
+# Performance logs
+perf.log
+performance.log
+
+# =============================================================================
+# END OF FILE
+# ============================================================================= 

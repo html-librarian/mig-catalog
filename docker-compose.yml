@@ -1,0 +1,105 @@
+version: "3.8"
+
+services:
+  # База данных PostgreSQL
+  db:
+    image: postgres:15-alpine
+    container_name: mig_catalog_db
+    environment:
+      POSTGRES_DB: mig_catalog
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: postgres
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+      - ./backend/init.sql:/docker-entrypoint-initdb.d/init.sql
+    ports:
+      - "5432:5432"
+    networks:
+      - mig_network
+    restart: unless-stopped
+
+  # Redis для кэширования
+  redis:
+    image: redis:7-alpine
+    container_name: mig_catalog_redis
+    ports:
+      - "6379:6379"
+    volumes:
+      - redis_data:/data
+    networks:
+      - mig_network
+    restart: unless-stopped
+
+  # Backend API
+  backend:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: mig_catalog_backend
+    environment:
+      - DATABASE_URL=postgresql://postgres:postgres@db/mig_catalog
+      - REDIS_URL=redis://redis:6379
+      - SECRET_KEY=${SECRET_KEY:-$(openssl rand -hex 64)}
+      - ROTATION_SECRET_KEY=${ROTATION_SECRET_KEY:-$(openssl rand -hex 64)}
+      - ALGORITHM=HS256
+      - ACCESS_TOKEN_EXPIRE_MINUTES=30
+      - DEBUG=False
+      - LOG_LEVEL=INFO
+      - ALLOWED_ORIGINS=http://localhost:3000,http://localhost:8080
+      - DB_HOST=db
+      - DB_PORT=5432
+      - DB_USER=postgres
+      - ENVIRONMENT=production
+    ports:
+      - "8000:8000"
+    depends_on:
+      - db
+      - redis
+    networks:
+      - mig_network
+    restart: unless-stopped
+    volumes:
+      - ./logs:/app/logs
+
+  # Frontend (заготовка для будущего)
+  # frontend:
+  #   build:
+  #     context: ./frontend
+  #     dockerfile: Dockerfile
+  #   container_name: mig_catalog_frontend
+  #   environment:
+  #     - REACT_APP_API_URL=http://localhost:8000
+  #   ports:
+  #     - "3000:3000"
+  #   depends_on:
+  #     - backend
+  #   networks:
+  #     - mig_network
+  #   restart: unless-stopped
+
+  # Nginx reverse proxy (опционально)
+  # nginx:
+  #   image: nginx:alpine
+  #   container_name: mig_catalog_nginx
+  #   ports:
+  #     - "80:80"
+  #     - "443:443"
+  #   volumes:
+  #     - ./nginx/nginx.conf:/etc/nginx/nginx.conf
+  #     - ./nginx/ssl:/etc/nginx/ssl
+  #   depends_on:
+  #     - backend
+  #     - frontend
+  #   networks:
+  #     - mig_network
+  #   restart: unless-stopped
+
+volumes:
+  postgres_data:
+    driver: local
+  redis_data:
+    driver: local
+
+networks:
+  mig_network:
+    driver: bridge
